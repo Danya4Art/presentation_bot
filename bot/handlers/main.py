@@ -14,6 +14,27 @@ from stuff.paths import config_path, presentations_path
 logger = logging.getLogger('handlers')
 
 
+async def send_help(message: types.Message):
+    await message.answer(
+"""
+РУКОВОДСТВО ПО ИСПОЛЬЗОВАНИЮ БОТА ДЛЯ СОЗДАНИЯ ПРЕЗЕНТАЦИЙ
+
+Бот имеет 3 меню:
+1. Главное - в нем Вы можете создать презентацию или выбрать уже созданную. 
+При нажатии на кнопку выбора Вы увидите список всех существующих презентаций, нажмите на интересующую.
+2. Презентация - здесь вы можете управлять презентацией, удалить ее или загрузить, отсюда Вы можете создать новый слайд по следующему шалону:
+Добавить "заголовок ____" "длина ____" "дата ____" "gps ____" "заключение ____"
+все поля являются опциональными, Вы сможете обновить их отдельно в меню слайда.
+Если поле дата не было использовано в сообщении, то на слайде будет сегодняшняя дата.
+Если поле gps не было исопльзовано в сообщении, то бот предложит отправить Ваше нынешнее месторасполажение через кнопку.
+3. Слайд - в этом меню Вы также можете создавать слайды по шаблону как в меню Презентация.
+Также Вы можете создавать пустые слайды, просматривать содержимое слайдов (в текстовом формате) и изменять содержимое
+
+По вопросам обращайтесь к https://t.me/Danya4Art
+"""
+    )
+
+
 async def send_welcome(message: types.Message):
     """
     This handler will be called when user sends `/start` or `/help` command
@@ -99,7 +120,11 @@ async def change_presentation(callback_query: types.CallbackQuery, state: FSMCon
         user_config: dict = json.loads('\n'.join(open(config_path, 'r').readlines()))
         user_config['chats'][str(callback_query.message.chat.id)]['state'].update({'presentation': pr, 'slide': -1})
         user_config['chats'][str(callback_query.message.chat.id)]['catch_images'] = True
-        await callback_query.message.reply(f'Презентация {pr} выбрана', reply_markup=presentation_kb)
+        await callback_query.message.reply(f'Презентация {pr} выбрана, '
+                                           f'Чтобы создать новый слайд напишите сообщение по следующему шаблону:\n\n',
+                                           reply_markup=presentation_kb)
+        await callback_query.message.answer('Добавить "заголовок _" "длина _" "дата _" "gps _" "заключение _"')
+        await callback_query.message.answer('Для вызова более подробной информации отправьте /help')
         with open(config_path, 'w') as f:
             f.write(json.dumps(user_config, indent=4))
     else:
@@ -107,7 +132,8 @@ async def change_presentation(callback_query: types.CallbackQuery, state: FSMCon
 
 
 def register_main_handlers(dp: Dispatcher):
-    dp.register_message_handler(send_welcome, lambda msg: msg.text == 'Помощь')
+    dp.register_message_handler(send_help, lambda msg: msg.text == 'Помощь')
+    dp.register_message_handler(send_help, commands=['help'])
     dp.register_message_handler(send_welcome, commands=['start', 'help'])
     dp.register_message_handler(cancel_handler, lambda msg: msg.text == 'Отмена', state='*')
     dp.register_message_handler(cancel_handler, state='*', commands=['cancel'])

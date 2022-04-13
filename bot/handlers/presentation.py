@@ -7,7 +7,7 @@ from datetime import date
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
 
-from bot.keyboards.reply_kb import slide_kb, help_kb, header_kb, commands
+from bot.keyboards.reply_kb import slide_kb, help_kb, header_kb, commands, location_kb, presentation_kb
 from stuff.paths import config_path, presentations_path
 from bot.states.content import ChooseSlide
 from bot.pptx_maker import PPTXMaker
@@ -99,17 +99,40 @@ async def add_slide_by_regex(message: types.Message):
         re.IGNORECASE
     )
     logger.error(match.groupdict())
-    pm.put_text(-1, 0, f'{match["header"]}\nПротяженность {match["length"]}', size=20, center=True, bold=True)
+    pm.put_text(-1, 0, f'{match["header"] if match["header"] else ""}\n' 
+                       f'Протяженность {match["length"] if match["length"] else ""}', size=20, center=True, bold=True)
     pm.put_text(-1, 1, f'{match["date"] if match["date"] else str(date.today().strftime("%d.%m.%Y"))}', paragraph=1)
     pm.put_text(-1, 1, f'{match["gps"] if match["gps"] else ""}', paragraph=3)
     pm.put_text(-1, 1, f'{match["con"] if match["con"] else ""}', paragraph=5)
     pm.save()
+    if not match['gps']:
+        await message.answer('Чтобы добавить Ваше месторасположение нажмите на кнопку', reply_markup=location_kb)
     user_config['chats'][str(message.chat.id)]['state']['slide'] = pm.slides_count - 1
     with open(config_path, 'w') as f:
         f.write(json.dumps(user_config, indent=4))
     # await ImageWait.name.set()
-    await message.answer(f'Новый слайд создан, отправьте до 4ех фотографий, чтобы прикрепить их к этому слайду\n'
-                         f'Чтобы новые фотографии не прикреплялись отправьте /cancel')
+    await message.answer(f'Новый слайд создан')
+    # if user_config['chats'][str(message.chat.id)]['catch_images']:
+    #     await message.answer(f'Чтобы новые фотографии не прикреплялись отправьте /switch_catching')
+    # else:
+    #     await message.answer(f'Чтобы новые фотографии прикреплялись отправьте /switch_catching')
+
+
+async def handle_location(message: types.Message):
+    user_config: dict = json.loads('\n'.join(open(config_path, 'r').readlines()))
+    sld = user_config['chats'][str(message.chat.id)]['state']['slide']
+    pr_path = os.path.join(presentations_path, str(message.chat.id),
+                           user_config['chats'][str(message.chat.id)]['state']['presentation'])
+    pm = PPTXMaker(pr_path, pr_path)
+    lat = message.location.latitude
+    lon = message.location.longitude
+    pm.put_text(sld, 1, f'{lat},{lon}', paragraph=3)
+    pm.save()
+    await message.answer(f'Ваша gps-координата успешно добавлена {lat},{lon}', reply_markup=presentation_kb)
+
+
+async def cancel_location_request(message: types.Message):
+    await message.answer(f'Отменено', reply_markup=presentation_kb)
 
 
 def register_presentation_handlers(dp: Dispatcher):
@@ -120,3 +143,5 @@ def register_presentation_handlers(dp: Dispatcher):
     dp.register_message_handler(delete_presentation, lambda msg: msg.text == 'Удалить презентацию')
     dp.register_callback_query_handler(force_delete_presentation, lambda c: c.data == '/delete')
     dp.register_message_handler(add_slide_by_regex, regexp=r'^Добавить(\s*".+"\s*)+')
+    dp.register_message_handler(handle_location, content_types=['location'])
+    dp.register_message_handler(cancel_location_request, lambda msg: msg.text == 'Отменить отправку месторасположения')

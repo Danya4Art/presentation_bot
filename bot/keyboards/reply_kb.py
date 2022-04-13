@@ -37,3 +37,7 @@ slide_kb = types.ReplyKeyboardMarkup(resize_keyboard=True).\
     add(buttons['К следующему слайду']).\
     add(buttons['Удалить слайд']).\
     add(buttons['Вернуться к текущей презентации'])
+
+location_kb = types.ReplyKeyboardMarkup(resize_keyboard=True).\
+    add(types.KeyboardButton('Отправить свое месторасположение', request_location=True)).\
+    add(types.KeyboardButton('Отменить отправку месторасположения'))
