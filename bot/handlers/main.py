@@ -133,7 +133,6 @@ async def change_presentation(callback_query: types.CallbackQuery, state: FSMCon
 
 def register_main_handlers(dp: Dispatcher):
     dp.register_message_handler(send_help, lambda msg: msg.text == 'Помощь')
-    dp.register_message_handler(send_help, commands=['help'])
     dp.register_message_handler(send_welcome, commands=['start', 'help'])
     dp.register_message_handler(cancel_handler, lambda msg: msg.text == 'Отмена', state='*')
     dp.register_message_handler(cancel_handler, state='*', commands=['cancel'])

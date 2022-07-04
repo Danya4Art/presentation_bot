@@ -90,23 +90,23 @@ async def add_slide_by_regex(message: types.Message):
     # concl = re.findall(r'"Заключение\s*(?P<con>.+?)"\s*', message.text, re.IGNORECASE)
     match = re.match(
         r'Добавить\s*'
-        r'"Заголовок\s*(?P<header>.+?)"\s*'
-        r'"Длина\s*(?P<length>.+?)"\s*'
-        r'("Дата\s*(?P<date>.+?)"\s*|'
+        r'("Заголовок\s*(?P<header>.+?)"\s*|'
+        r'"Длина\s*(?P<length>.+?)"\s*|'
+        r'"Дата\s*(?P<date>.+?)"\s*|'
         r'"GPS\s*(?P<gps>.+?)"\s*|'
-        r'"Заключение\s*(?P<con>.+?)"\s*){0,3}',
+        r'"Заключение\s*(?P<con>.+?)"\s*){1,5}',
         message.text,
         re.IGNORECASE
     )
     logger.error(match.groupdict())
     pm.put_text(-1, 0, f'{match["header"] if match["header"] else ""}\n' 
-                       f'Протяженность {match["length"] if match["length"] else ""}', size=20, center=True, bold=True)
+                       f'Протяженность {match["length"] if match["length"] else ""}', size=18, center=True, bold=True)
     pm.put_text(-1, 1, f'{match["date"] if match["date"] else str(date.today().strftime("%d.%m.%Y"))}', paragraph=1)
     pm.put_text(-1, 1, f'{match["gps"] if match["gps"] else ""}', paragraph=3)
     pm.put_text(-1, 1, f'{match["con"] if match["con"] else ""}', paragraph=5)
     pm.save()
     if not match['gps']:
-        await message.answer('Чтобы добавить Ваше месторасположение нажмите на кнопку', reply_markup=location_kb)
+        await message.answer('Отправьте gps-координату, чтобы добавить месторасположение к слайду')
     user_config['chats'][str(message.chat.id)]['state']['slide'] = pm.slides_count - 1
     with open(config_path, 'w') as f:
         f.write(json.dumps(user_config, indent=4))
@@ -128,11 +128,28 @@ async def handle_location(message: types.Message):
     lon = message.location.longitude
     pm.put_text(sld, 1, f'{lat},{lon}', paragraph=3)
     pm.save()
-    await message.answer(f'Ваша gps-координата успешно добавлена {lat},{lon}', reply_markup=presentation_kb)
+    await message.answer(f'Ваша gps-координата успешно добавлена {lat}, {lon}', reply_markup=presentation_kb)
 
 
 async def cancel_location_request(message: types.Message):
     await message.answer(f'Отменено', reply_markup=presentation_kb)
+
+
+async def add_conclusion(message: types.Message):
+    user_config: dict = json.loads('\n'.join(open(config_path, 'r').readlines()))
+    sld = user_config['chats'][str(message.chat.id)]['state']['slide']
+    pr_path = os.path.join(presentations_path, str(message.chat.id),
+                           user_config['chats'][str(message.chat.id)]['state']['presentation'])
+    pm = PPTXMaker(pr_path, pr_path)
+    old_concl = set(pm.get_content(sld)[2].split('\n')[-1].split('\x0b'))
+    if '' in old_concl:
+        old_concl.remove('')
+    logger.warning(old_concl)
+    new_concl = set(re.findall('"(.+?)"', message.text))
+    concl = '\n'.join(old_concl | new_concl)
+    logger.warning(concl)
+    pm.put_text(-1, 1, concl, paragraph=5, level=1)
+    pm.save()
 
 
 def register_presentation_handlers(dp: Dispatcher):
@@ -145,3 +162,4 @@ def register_presentation_handlers(dp: Dispatcher):
     dp.register_message_handler(add_slide_by_regex, regexp=r'^Добавить(\s*".+"\s*)+')
     dp.register_message_handler(handle_location, content_types=['location'])
     dp.register_message_handler(cancel_location_request, lambda msg: msg.text == 'Отменить отправку месторасположения')
+    dp.register_message_handler(add_conclusion, regexp=r'^Выводы(\s*".+"\s*)+')
